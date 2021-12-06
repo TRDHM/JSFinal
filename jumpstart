@@ -1,0 +1,95 @@
+#!/bin/bash
+
+Help()
+{
+	echo "Options"
+	printf "%s\\n" "-l | lists all available services, their type, and a short description"
+	printf "%s\\n" "-s | shows status of all installed Kubernetes services"
+	printf "%s\\n" "-h | display this list again"
+	printf "%s\\n" "-i [name] | install and deploy service"
+	printf "%s\\n" "-u [name] | uninstall a deployed service"
+
+}
+
+List()
+{
+
+	column -t -s "	" services.txt
+}
+
+Install() {
+	echo "Enter which service you want to install"
+	servArray=( $(awk '(NR>1) {print $1}' services.txt) )
+
+	for i in "${servArray[@]}"
+	do
+		echo "$i"
+	done
+
+	read iName
+
+	if ! grep -q $iName "installed.txt"; then
+		echo "You can only have one instance of each installed service"
+	else
+		$iName
+
+	fi 
+}
+
+Uninstall()
+{
+	echo "Uninstall function called"
+	echo "$uName was uninstalled"
+}
+
+Status(){
+echo "Would you like to use the Kubernetes Dashboard
+}
+
+Menu(){
+	printf "%s\\n" "1) List"
+	printf "%s\\n" "2) Status"
+	printf "%s\\n" "3) Help"
+	printf "%s\\n" "4) Install"
+	printf "%s\\n" "5) Uninstall"
+	printf "%s\\n" "6) Exit"
+}
+
+
+options=("List" "Status" "Help" "Install" "Uninstall" "Exit")
+select opt in "${options[@]}"
+
+do
+  case $opt in 
+	List)
+	  clear 
+	  List
+	  ;;
+	Status)
+	  clear
+	  Status
+	  ;;
+	Help)
+	  clear
+	  Help
+	  ;;
+	Install)
+	  clear
+	  Install
+	  ;;
+	Uninstall)
+	  clear
+	  Uninstall
+	  ;;
+	Exit)
+	  break
+	  ;;
+	*)
+	  echo "Invalid Option" 
+	  Help 
+  esac
+    echo ""
+    echo ""
+    echo "JumpStart Menu"
+    Menu
+done 

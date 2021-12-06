@@ -1,0 +1,23 @@
+#!/bin/bash
+
+getReqs(){
+	apt install virtualbox&
+	curl -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 \
+  && chmod +x minikube
+	mkdir -p /usr/local/bin/
+	install minikube /usr/local/bin/
+        sudo apt-get install curl wget lynx w3m&
+	curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+	install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+	curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+	chmod 700 get_helm.sh
+	./get_helm.sh
+}
+
+
+
+if grep -E --color 'vmx|smx' /proc/cpuinfo
+	getReqs
+else 
+	echo "You must enable hardware virtualization"
+fi
