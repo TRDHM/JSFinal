@@ -2,4 +2,4 @@ Service		Description	Type
 Wordpress	Simple website creation and hosting. Includes database backend	Website 
 MySQL	Popular database	Database
 GitLab	Self-hosted application for development and version management.	Development
-
+Kubeapp	TEST	TEST

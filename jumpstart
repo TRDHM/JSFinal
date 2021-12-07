@@ -3,11 +3,11 @@
 Help()
 {
 	echo "Options"
-	printf "%s\\n" "-l | lists all available services, their type, and a short description"
-	printf "%s\\n" "-s | shows status of all installed Kubernetes services"
-	printf "%s\\n" "-h | display this list again"
-	printf "%s\\n" "-i [name] | install and deploy service"
-	printf "%s\\n" "-u [name] | uninstall a deployed service"
+	printf "%s\\n" "List       | lists all available services, their type, and a short description"
+	printf "%s\\n" "Status     | shows status of all installed Kubernetes services through the Kubernetes dashboard"
+	printf "%s\\n" "Help       | display this list again"
+	printf "%s\\n" "Install    | install and deploy service"
+	printf "%s\\n" "Uninstall  | uninstall a deployed service"
 
 }
 
@@ -27,23 +27,83 @@ Install() {
 	done
 
 	read iName
-
-	if ! grep -q $iName "installed.txt"; then
+    if grep -q $iName "services.txt"; then
+	if grep -q $iName "installed.txt"; then
 		echo "You can only have one instance of each installed service"
 	else
-		$iName
 
+		$iName
 	fi 
+  else 
+	echo "Sorry, that's an invalid input" 
+
+  fi
+}
+
+Wordpress() {
+	helm repo add bitnami https://charts.bitnami.com/bitnami #&>/dev/null &
+	echo "This may take a few minutes, get some coffee."
+	helm install Wordpress bitnami/wordpress #&>/dev/null &
+	minikube tunnel #&>/dev/null &
+	wpIP = minikube svc wordpress --url
+	echo "You can reach your Wordpress installation at $wpIP"
+	echo "Wordpress" >> installed.txt 
+}
+
+MySQL() {
+	helm repo add bitnami https://charts.gitlab.io/ &
+	echo "This may take a few minutes, get some m&m's."
+	helm install MySQL bitnami/mysql &
+	ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
+	helm upgrade --namespace default mysql bitnami/mysql --set auth.rootPassword=$ROOT_PASSWORD &
+	sqlPOD = kubectl run mysql-client --rm --tty -i --restart='Never' --image docker.io/bitnami/mysql:8.0.27-debian-10-r35 --namespace default --command -- bash
+	MYSQL_ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
+	sqlCONNECT = mysql -h mysql.default.svc.cluster.local -uroot -p "$MYSQL_ROOT_PASSWORD"
+	echo "Create a client instance with $sqlPOD. Connect to it to interact with MySQL with $sqlCONNECT"
+	echo "MySQL" >> installed.txt 
+}
+
+GitLab(){
+	helm repo add gitlab https://charts.gitlab.io/ &
+	echo "glInstall"
+	echo "This may take a few minutes, make youself a bagel."
+	helm install GitLab gitlab/gitlab &
+	echo "GitLab" >> installed.txt 
+}
+
+
+Kubeapps(){
+	helm repo add bitnami https://charts.bitnami.com/bitnami &
+	echo "This may take a few minutes, make youself some tea."
+	kubectl create namespace kubeapps &
+	helm install Kubeapps --namespace Kubeapps bitnami/kubeapps &
+	kubectl create serviceaccount kubeapps-operator &
+	kubectl create clusterrolebinding kubeapps-operator --clusterrole=cluster-admin --serviceaccount=default:kubeapps-operator &
+	KAapi = kubectl get secret $(kubectl get serviceaccount kubeapps-operator -o jsonpath='{.secrets[].name}') -o jsonpath='{.data.token}' | base64 --decode
+	echo "You can access your web gui with API token $KAapi"
+	kubectl port-forward -n kubeapps svc/kubeapps 8080:80 &
+	echo "Kubeapps" >> installed.txt 
 }
 
 Uninstall()
 {
-	echo "Uninstall function called"
+	echo "Installed Services"
+	while read p; do
+  	echo "$p"
+	done <installed.txt
+
+	read uName
+	if ! grep -q $iName "installed.txt"; then
+                echo "That service is not currently installed"
+        else 
 	echo "$uName was uninstalled"
+	awk '{gsub("$uName", "");print}' installed.txt
+	helm uninstall $uName
+	fi
 }
 
 Status(){
-echo "Would you like to use the Kubernetes Dashboard
+echo "Would you like to use the Kubernetes Dashboard?"
 }
 
 Menu(){
@@ -88,8 +148,8 @@ do
 	  echo "Invalid Option" 
 	  Help 
   esac
-    echo ""
-    echo ""
+    #echo ""
+    #echo ""
     echo "JumpStart Menu"
     Menu
 done 
