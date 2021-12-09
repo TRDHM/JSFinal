@@ -15,10 +15,15 @@ getReqs(){
 	minikube start
 }
 
-
+setHelm(){
+ helm repo add bitnami https://charts.bitnami.com/bitnami
+ helm repo add gitlab http://charts.gitlab.io/
+ helm repo add stable https://charts.helm.sh/stable
+}
 
 if grep -E --color 'vmx|smx' /proc/cpuinfo; then
 	getReqs
+	setHelm
 else 
-	echo "You must enable hardware virtualization"
+	echo "You must enable hardware virtualization. If you are unable to do that, please contact your IT department."
 fi

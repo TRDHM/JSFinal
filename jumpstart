@@ -1,4 +1,6 @@
 #!/bin/bash
+shopt -s expand_aliases #needed to make aliases work
+
 
 Help()
 {
@@ -11,6 +13,15 @@ Help()
 
 }
 
+ColorGreen(){
+	echo -ne $green$1$clear
+}
+
+ColorBlue(){
+	echo -ne $blue$1$clear
+}
+
+
 List()
 {
 
@@ -18,57 +29,63 @@ List()
 }
 
 Install() {
-	echo "Enter which service you want to install"
-	servArray=( $(awk '(NR>1) {print $1}' services.txt) )
+	#servArray=( $(awk '(NR>1) {print $1}' services.txt) ) #Gets all lines from the services file into an array"
 
-	for i in "${servArray[@]}"
-	do
-		echo "$i"
-	done
+	#if grep -q $iName "installed.txt"; then
+	#	echo "You can only have one instance of each installed service"
 
-	read iName
-    if grep -q $iName "services.txt"; then
-	if grep -q $iName "installed.txt"; then
-		echo "You can only have one instance of each installed service"
-	else
-
-		$iName
-	fi 
-  else 
-	echo "Sorry, that's an invalid input" 
-
-  fi
+	echo -ne "
+        JUMPSTART MENU
+        $(ColorGreen '1)') Wordpress
+        $(ColorGreen '2)') MySQL
+        $(ColorGreen '3)') GitLab 
+        $(ColorGreen '4)') Kubeapps
+        $(ColorGreen '0)') Exit "
+        echo ""        
+		read a
+                case $a in
+                        1) Wordpress ;;
+                        2) MySQL;;
+                        3) GitLab;;
+                        4) Kubeapps;;
+                        0) exit 0 ;;
+                        *) echo -e $red"Wrong option."$clear;Help;;
+                esac
 }
 
 Wordpress() {
-	helm repo add bitnami https://charts.bitnami.com/bitnami #&>/dev/null &
 	echo "This may take a few minutes, get some coffee."
-	helm install Wordpress bitnami/wordpress #&>/dev/null &
-	minikube tunnel #&>/dev/null &
-	wpIP = minikube svc wordpress --url
-	echo "You can reach your Wordpress installation at $wpIP"
-	echo "Wordpress" >> installed.txt 
+	gnome-terminal -- sh -c 'helm install my-wp bitnami/wordpress'
+	#wait for pod to be ready before running tunnel, etc
+	while [[ $(kubectl get pods my-wp-wordpress -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]; do echo "waiting for pod"; done
+	sudo -b gnome-terminal -- sh -c 'minikube tunnel' #runs tunnel in a new tab to avoid verbose junk
+	echo "Please leave the new tab open, its important to accessing your WordPress instance."
+	echo "You can reach your Wordpress installation at $(minikube service my-wp-wordpress --url)"
+	echo "Username: user"
+	echo "Password: $(kubectl get secret --namespace default my-wp-wordpress -o jsonpath="{.data.wordpress-password}" | base64 --decode)"
+	sed -i '1s/^/ my-wp-wordpress \n/' installed.txt 
 }
 
 MySQL() {
-	helm repo add bitnami https://charts.gitlab.io/ &
+	
 	echo "This may take a few minutes, get some m&m's."
-	helm install MySQL bitnami/mysql &
+	gnome-terminal -- sh -c 'helm install mysql bitnami/mysql'
+	sleep 60 #need to wait for secret creation  
 	ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
-	helm upgrade --namespace default mysql bitnami/mysql --set auth.rootPassword=$ROOT_PASSWORD &
-	sqlPOD = kubectl run mysql-client --rm --tty -i --restart='Never' --image docker.io/bitnami/mysql:8.0.27-debian-10-r35 --namespace default --command -- bash
+	#helm upgrade --namespace default mysql bitnami/mysql --set auth.rootPassword=$ROOT_PASSWORD 
+	kubectl run mysql-client --rm --tty -i --restart='Never' --image docker.io/bitnami/mysql:8.0.27-debian-10-r35 --namespace default --command -- bash
 	MYSQL_ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
-	sqlCONNECT = mysql -h mysql.default.svc.cluster.local -uroot -p "$MYSQL_ROOT_PASSWORD"
-	echo "Create a client instance with $sqlPOD. Connect to it to interact with MySQL with $sqlCONNECT"
-	echo "MySQL" >> installed.txt 
+	#not sure if this works yet, move to setup file and add manually!!! echo "alias sqlCONNECT='mysql -h mysql.default.svc.cluster.local -uroot -p $MYSQL_ROOT_PASSWORD'" >> ~/.bash_aliases
+	echo "Interact with MySQL with the command  sqlCONNECT"
+	echo "my-mysql" >> installed.txt 
 }
 
 GitLab(){
 	helm repo add gitlab https://charts.gitlab.io/ &
 	echo "glInstall"
 	echo "This may take a few minutes, make youself a bagel."
-	helm install GitLab gitlab/gitlab &
-	echo "GitLab" >> installed.txt 
+	gnome-terminal -- sh -c 'helm install my-gitlab gitlab/gitlab' 
+	echo "my-gitlab" >> installed.txt 
 }
 
 
@@ -92,64 +109,54 @@ Uninstall()
   	echo "$p"
 	done <installed.txt
 
-	read uName
-	if ! grep -q $iName "installed.txt"; then
-                echo "That service is not currently installed"
-        else 
-	echo "$uName was uninstalled"
-	awk '{gsub("$uName", "");print}' installed.txt
+	mapfile -t installed < installed.txt
+	installed+=( "Exit" )
+
+	select selection in "${installed[@]}"; do
+	  if [[ $REPLY == "0" ]]; then
+        	echo 'No Services Currently Installed' >&2
+        	exit
+    	else
+       		echo $REPLY $installed
+		echo "0) exit 0 ;;"
+          break
+    	 fi
+	done
+
+	sed -i '/$uName/d' ./installed.txt
 	helm uninstall $uName
-	fi
+	echo "$uName was uninstalled"
+
 }
 
 Status(){
-echo "Would you like to use the Kubernetes Dashboard?"
+ gnome-terminal -- sh -c 'minikube dashboard' 
 }
 
 Menu(){
-	printf "%s\\n" "1) List"
-	printf "%s\\n" "2) Status"
-	printf "%s\\n" "3) Help"
-	printf "%s\\n" "4) Install"
-	printf "%s\\n" "5) Uninstall"
-	printf "%s\\n" "6) Exit"
+	
+	echo -ne "
+	JUMPSTART MENU
+	$(ColorGreen '1)') List
+	$(ColorGreen '2)') Status
+	$(ColorGreen '3)') Help 
+	$(ColorGreen '4)') Install
+	$(ColorGreen '5)') Uninstall
+	$(ColorGreen '0)') Exit
+	$(ColorBlue 'Choose an option:') "
+        	read a
+        	case $a in
+	        	1) List ; Menu ;;
+	        	2) Status ; Menu ;;
+	        	3) Help ; Menu ;;
+	        	4) Install ; Menu ;;
+	        	5) Uninstall ; Menu ;;
+			0) exit 0 ;;
+			*) echo -e $red"Wrong option."$clear;Help;;
+        	esac
 }
 
-
-options=("List" "Status" "Help" "Install" "Uninstall" "Exit")
-select opt in "${options[@]}"
-
+while true 
 do
-  case $opt in 
-	List)
-	  clear 
-	  List
-	  ;;
-	Status)
-	  clear
-	  Status
-	  ;;
-	Help)
-	  clear
-	  Help
-	  ;;
-	Install)
-	  clear
-	  Install
-	  ;;
-	Uninstall)
-	  clear
-	  Uninstall
-	  ;;
-	Exit)
-	  break
-	  ;;
-	*)
-	  echo "Invalid Option" 
-	  Help 
-  esac
-    #echo ""
-    #echo ""
-    echo "JumpStart Menu"
-    Menu
-done 
+ Menu
+done
