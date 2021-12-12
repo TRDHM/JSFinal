@@ -53,7 +53,7 @@ Wordpress() {
 	echo "This may take a few minutes, get some coffee."
 	gnome-terminal -- sh -c 'helm install my-wp bitnami/wordpress'
 	#wait for pod to be ready before running tunnel, etc
-	while [[ $(kubectl get pods my-wp-wordpress -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]; do echo "waiting for pod"; done
+	sleep 30
 	sudo -b gnome-terminal -- sh -c 'minikube tunnel' #runs tunnel in a new tab to avoid verbose junk
 	echo "Please leave the new tab open, its important to accessing your WordPress instance."
 	echo "You can reach your Wordpress installation at $(minikube service my-wp-wordpress --url)"
@@ -69,7 +69,8 @@ MySQL() {
 	echo "This may take a few minutes, get some m&m's."
 	gnome-terminal -- sh -c 'helm install mysql bitnami/mysql'
 	#need to wait for pod ready, otherwise secret etc won't exist
-	while [[ $(kubectl get pods mysql -o 'jsonpath={>
+	while [[ $(kubectl get pods mysql -o 'jsonpath={..status.conditions[?@.type=="Ready")].status}') != "True" ]]; do 
+	clear; echo "waiting for pod" && sleep 10; done
   
 	ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
 	#helm upgrade --namespace default mysql bitnami/mysql --set auth.rootPassword=$ROOT_PASSWORD 
