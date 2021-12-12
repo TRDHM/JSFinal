@@ -29,10 +29,6 @@ List()
 }
 
 Install() {
-	#servArray=( $(awk '(NR>1) {print $1}' services.txt) ) #Gets all lines from the services file into an array"
-
-	#if grep -q $iName "installed.txt"; then
-	#	echo "You can only have one instance of each installed service"
 
 	echo -ne "
         JUMPSTART MENU
@@ -63,6 +59,8 @@ Wordpress() {
 	echo "You can reach your Wordpress installation at $(minikube service my-wp-wordpress --url)"
 	echo "Username: user"
 	echo "Password: $(kubectl get secret --namespace default my-wp-wordpress -o jsonpath="{.data.wordpress-password}" | base64 --decode)"
+	
+	#Adds installation to the installed file
 	sed -i '1s/^/ my-wp-wordpress \n/' installed.txt 
 }
 
@@ -70,12 +68,14 @@ MySQL() {
 	
 	echo "This may take a few minutes, get some m&m's."
 	gnome-terminal -- sh -c 'helm install mysql bitnami/mysql'
-	sleep 60 #need to wait for secret creation  
+	#need to wait for pod ready, otherwise secret etc won't exist
+	while [[ $(kubectl get pods mysql -o 'jsonpath={>
+  
 	ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
 	#helm upgrade --namespace default mysql bitnami/mysql --set auth.rootPassword=$ROOT_PASSWORD 
 	kubectl run mysql-client --rm --tty -i --restart='Never' --image docker.io/bitnami/mysql:8.0.27-debian-10-r35 --namespace default --command -- bash
 	MYSQL_ROOT_PASSWORD=$(kubectl get secret --namespace default mysql -o jsonpath="{.data.mysql-root-password}" | base64 --decode)
-	#not sure if this works yet, move to setup file and add manually!!! echo "alias sqlCONNECT='mysql -h mysql.default.svc.cluster.local -uroot -p $MYSQL_ROOT_PASSWORD'" >> ~/.bash_aliases
+	alias sqlCONNECT='mysql -h mysql.default.svc.cluster.local -uroot -p $MYSQL_ROOT_PASSWORD'
 	echo "Interact with MySQL with the command  sqlCONNECT"
 	echo "my-mysql" >> installed.txt 
 }
